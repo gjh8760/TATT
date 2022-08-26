@@ -1,0 +1,16 @@
+# Pycache
+**/_pycache__/
+**/*.py[cod]
+
+# IDE, Mac
+.DS_store
+.idea/
+.code/
+.vscode/
+.ipynb_checkpoints/
+
+# Custom
+ckpts/
+debug/
+configs/CDistNet_*.py
+

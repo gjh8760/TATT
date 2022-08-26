@@ -1,0 +1,55 @@
+MODEL:
+
+
+TRAIN:
+  train_data_dir: [
+  ]
+  batch_size: 512
+  width: 128
+  height: 32
+  epochs: 500
+  cuda: True
+  ngpu: 1
+  workers: 8
+  resume: ''
+  ckpt_dir: './ckpt'
+  voc_type: 'lower' #'digits lower upper all'
+  saveInterval: 200
+  displayInterval: 50 #display loss
+  adadelta: False
+  lr: 0.001
+  adam: True
+  optimizer: "Adam"
+  beta1: 0.5
+  manualSeed: 1234
+  max_len: 100
+  keep_ratio: False
+  down_sample_scale: 2
+
+  VAL:
+    val_data_dir: [
+      '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/CUTE80',
+      '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC13_857',
+      '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC15_1811',
+      '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IIIT5k_3000',
+      '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/SVT',
+      '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/SVTP',
+    ]
+    n_vis: 10
+    vis_dir: 'demo'
+    valInterval: 200 #-1, val at the end of epoch
+    rec_pretrained: './models_str/aster/demo.pth.tar'
+    moran_pretrained: './models_str/moran/demo.pth'
+    crnn_pretrained: './models_str/crnn/crnn.pth'
+    cdistnet_kor_pretrained: './models_str/cdistnet/epoch10_best_acc.pth'
+    cdistnet_eng_pretrained: './models_str/cdistnet/epoch9_best_acc.pth'
+
+TEST:
+  checkpoint: ''
+  test_data_dir: [
+    ]
+
+CONVERT:
+  image_dir:
+  lmdb_dir:
+  n_convert: 10

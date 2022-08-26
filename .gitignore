@@ -1,0 +1,8 @@
+.idea/**
+TATT_release.zip
+CDistNet/ckpts/**
+LR/**
+result/**
+tensorboard/**
+ckpt/**
+models_str/*
