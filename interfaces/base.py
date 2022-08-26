@@ -196,70 +196,28 @@ class TextBase(object):
 
         return {'model': model, 'crit': image_crit, 'epoch': epoch, 'iter': iters}
 
-    def optimizer_init(self, model, recognizer=None, global_model=None):
+    def optimizer_init(self, model_list, learning_rate_list):
         cfg = self.config.TRAIN
-        learning_rate = self.args.learning_rate
 
-        # print("recognizer:", recognizer)
+        # model_params = []
+        # for m in model_list:
+        #     model_params += list(m.parameters())
 
-        if not recognizer is None:
-            if type(recognizer) == list:
-                if cfg.optimizer == "Adam":
-
-                    rec_params = []
-                    model_params = []
-
-                    for recg in recognizer:
-                        rec_params += list(recg.parameters())
-
-                    if not global_model is None:
-                        gm_params = []
-                        if type(global_model) == list:
-                            for gm in global_model:
-                                gm_params += list(gm.parameters())
-                        else:
-                            gm_params += list(global_model.parameters())
-                        model_params += gm_params
-
-                    if type(model) == list:
-                        for m in model:
-                            model_params += list(m.parameters())
-                    else:
-                        model_params += list(model.parameters())
-
-                    optimizer = optim.Adam(model_params + rec_params, lr=cfg.lr,
-                                           betas=(cfg.beta1, 0.999))
-
-            else:
-                if cfg.optimizer == "Adam":
-
-                    model_params = []
-                    if type(model) == list:
-                        for m in model:
-                            model_params += list(m.parameters())
-                    else:
-                        model_params = list(model.parameters())
-
-                    optimizer = optim.Adam(model_params + list(recognizer.parameters()), lr=cfg.lr,
-                                           betas=(cfg.beta1, 0.999))
-                elif cfg.optimizer == "SGD":
-                    optimizer = optim.SGD(list(model.parameters()) + list(recognizer.parameters()), lr=cfg.lr,
-                                          momentum=0.9)
-
-        else:
+        param_lr_list = []
+        for idx, model in enumerate(model_list):
+            param_lr_dict = {}
+            lr = learning_rate_list[idx]
             model_params = []
-            if type(model) == list:
-                for m in model:
-                    model_params += list(m.parameters())
-            else:
-                model_params = list(model.parameters())
+            for m in model:
+                model_params += list(m.parameters())
+            param_lr_dict['params'] = model_params
+            param_lr_dict['lr'] = lr
+            param_lr_list.append(param_lr_dict)
 
-            if cfg.optimizer == "Adam":
-                optimizer = optim.Adam(model_params, lr=cfg.lr,
-                                       betas=(cfg.beta1, 0.999))
-            elif cfg.optimizer == "SGD":
-                optimizer = optim.SGD(model_params, lr=cfg.lr,
-                                      momentum=0.9)
+        if cfg.optimizer == 'Adam':
+            optimizer = optim.Adam(param_lr_list, lr=cfg.lr, betas=(cfg.beta1, 0.999))
+        if cfg.optimizer == 'SGD':
+            optimizer = optim.SGD(param_lr_list, lr=cfg.lr, momentum=0.9)
 
         return optimizer
 

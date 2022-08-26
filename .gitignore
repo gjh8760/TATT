@@ -6,3 +6,5 @@ result/**
 tensorboard/**
 ckpt/**
 models_str/*
+.vscode/*
+**/__pycache__/**

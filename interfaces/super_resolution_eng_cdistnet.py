@@ -156,7 +156,8 @@ class TextSR(base.TextBase):
 
         stu_model_fixed.eval()
 
-        optimizer_G = self.optimizer_init(model_list)
+        learning_rate_list = [self.args.learning_rate, self.args.tpg_lr]
+        optimizer_G = self.optimizer_init(model_list=[model_list, aster_student], learning_rate_list=learning_rate_list)
 
         if not os.path.exists(cfg.ckpt_dir):
             os.makedirs(cfg.ckpt_dir)
@@ -170,6 +171,7 @@ class TextSR(base.TextBase):
         best_acc = 0
         converge_list = []
         lr = cfg.lr
+        lr_tpg = self.args.tpg_lr
 
         for model in model_list:
             model.train()
@@ -259,7 +261,8 @@ class TextSR(base.TextBase):
                           'loss_im: {:.3f} \t'
                           'loss_teaching: {:.3f} \t'
                           'loss_tssim: {:.3f} \t'
-                          '{:.4f} \t'
+                          'lr: {:.5f} \t'
+                          'lr_tpg: {:.5f} \t'
                           .format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                                   epoch, j + 1, len(train_loader),
                                   self.vis_dir,
@@ -267,7 +270,8 @@ class TextSR(base.TextBase):
                                   float(loss_img.data),
                                   float(loss_recog_distill.data),
                                   float(loss_tssim.data),
-                                  lr))
+                                  lr,
+                                  lr_tpg))
 
                 # validation & test
                 if j+1 == len(train_loader):
