@@ -602,7 +602,7 @@ class TSRN_TL_TRANS(nn.Module):
         for i in range(srb_nums):
             setattr(self, 'block%d' % (i + 2), RecurrentResidualBlockTL(2 * hidden_units, out_text_channels)) #RecurrentResidualBlockTL
 
-        self.text_embedding = text_embedding    # 37 for crnn, 40 for cdistnet_eng, 2354 for cdistnet_kor
+        self.text_embedding = text_embedding    # 37 for crnn, 40 for cdistnet_eng, 2354 for cdistnet_kor, 2448 for cdistnet_all
         self.infoGen = TPInterpreter(text_embedding, out_text_channels, output_size=(height//scale_factor, width//scale_factor)) # InfoGen(text_emb, out_text_channels)
 
         self.feature_rotate = feature_rotate

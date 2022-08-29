@@ -44,7 +44,7 @@ TRAIN:
     crnn_pretrained: './models_str/crnn/crnn.pth'
     cdistnet_eng_pretrained: './models_str/cdistnet_eng/epoch9_best_acc.pth'
     cdistnet_kor_pretrained: './models_str/cdistnet_kor/epoch10_best_acc.pth'
-    cdistnet_total_pretrained: './models_str/cdistnet_total/epoch10_best_acc.pth'
+    cdistnet_all_pretrained: './models_str/cdistnet_all/epoch10_best_acc.pth'
 
 TEST:
   checkpoint: ''

@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from interfaces import base
 
 from utils import ssim_psnr
-from utils.metrics import get_string_aster, get_string_crnn, get_string_cdistnet_eng
+from utils.metrics import get_string_aster, get_string_crnn, get_string_cdistnet_all
 from utils.util import str_filt
 
 from loss.semantic_loss import SemanticLoss
@@ -28,9 +28,6 @@ sys.path.append('../')
 sys.path.append('./')
 
 sem_loss = SemanticLoss()
-ctc_loss = torch.nn.CTCLoss(blank=0, reduction='none')
-
-ssim = ssim_psnr.SSIM()
 tri_ssim = ssim_psnr.TRI_SSIM()
 
 
@@ -103,7 +100,7 @@ class TextSR(base.TextBase):
         return ret_dict
 
     def train(self):
-        TP_Generator_dict = {'cdistnet_eng': self.CDistNet_eng_init}
+        TP_Generator_dict = {'cdistnet_all': self.CDistNet_all_init}
 
         cfg = self.config.TRAIN
         train_dataset, train_loader = self.get_train_data()
@@ -127,14 +124,14 @@ class TextSR(base.TextBase):
         # English: cdistnet_eng
         stu_model_fixed, aster_info = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=None)
         test_bible = {}
-        cdistnet, cdistnet_info = self.CDistNet_eng_init()
+        cdistnet, cdistnet_info = self.CDistNet_all_init()
         for p in cdistnet.parameters():
             p.requires_grad = False
         cdistnet.eval()
-        test_bible['cdistnet_eng'] = {
+        test_bible['cdistnet_all'] = {
             'model': cdistnet,
             'data_in_fn': self.parse_cdistnet_data,
-            'string_process': get_string_cdistnet_eng
+            'string_process': get_string_cdistnet_all
         }
 
         aster_student = []
@@ -329,7 +326,7 @@ class TextSR(base.TextBase):
                         else:
                             print('best_%s = %.2f%%' % (data_name, best_history_acc[data_name] * 100))
 
-                    if sum(current_acc_dict.values()) > best_acc:   # easy, medium, hard acc의 총합
+                    if sum(current_acc_dict.values()) > best_acc:
                         best_acc = sum(current_acc_dict.values())
                         best_model_acc = current_acc_dict
                         best_model_acc['epoch'] = epoch
@@ -403,20 +400,19 @@ class TextSR(base.TextBase):
                 metric_dict['psnr_lr'].append(self.cal_psnr(img_lr[:, :3], images_hr[:, :3]))
                 metric_dict['ssim_lr'].append(self.cal_ssim(img_lr[:, :3], images_hr[:, :3]))
 
-                filter_mode = 'lower'
-                is_cdistnet_eng = True
+                filter_mode = 'all_test'
 
                 for batch_i in range(images_lr.shape[0]):
                     label = label_strs[batch_i]
 
                     for k in range(self.args.stu_iter):
-                        if str_filt(predict_result_sr[batch_i], filter_mode, is_cdistnet_eng) == str_filt(label, filter_mode, is_cdistnet_eng):
+                        if str_filt(predict_result_sr[batch_i], filter_mode) == str_filt(label, filter_mode):
                             counters[k] += 1
 
-                    if str_filt(predict_result_lr[batch_i], filter_mode, is_cdistnet_eng) == str_filt(label, filter_mode, is_cdistnet_eng):
+                    if str_filt(predict_result_lr[batch_i], filter_mode) == str_filt(label, filter_mode):
                         n_correct_lr += 1
 
-                    if str_filt(predict_result_hr[batch_i], filter_mode, is_cdistnet_eng) == str_filt(label, filter_mode, is_cdistnet_eng):
+                    if str_filt(predict_result_hr[batch_i], filter_mode) == str_filt(label, filter_mode):
                         n_correct_hr += 1
 
                 sum_images += val_batch_size
@@ -466,10 +462,9 @@ class TextSR(base.TextBase):
             return metric_dict
 
     def test(self):
-        TP_Generator_dict = {'cdistnet_eng': self.CDistNet_eng_init}
+        TP_Generator_dict = {'cdistnet_ALL': self.CDistNet_ALL_init}
         recognizer_path = os.path.join(self.resume, 'recognizer_best.pth')
         tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=recognizer_path)[0]
-        voc_type = self.config.TRAIN.voc_type
 
         model_dict = self.generator_init(0)
         model, image_crit = model_dict['model'], model_dict['crit']
@@ -525,16 +520,17 @@ class TextSR(base.TextBase):
             pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
                                                       input_images=images_lr[:, :3, :, :],
                                                       dataset_info=info)
+            
+            voc_type = 'all_test'
 
-            is_cdistnet_eng = True
             # HR # of correct samples
             for pred, target in zip(pred_str_sr, label_strs):
-                if str_filt(pred, voc_type, is_cdistnet_eng) == str_filt(target, voc_type, is_cdistnet_eng):
+                if str_filt(pred, voc_type) == str_filt(target, voc_type):
                     n_correct += 1
 
             # LR # of correct samples
             for pred, target in zip(pred_str_lr, label_strs):
-                if str_filt(pred, voc_type, is_cdistnet_eng) == str_filt(target, voc_type, is_cdistnet_eng):
+                if str_filt(pred, voc_type) == str_filt(target, voc_type):
                     n_correct_lr += 1
 
             sum_images += val_batch_size
@@ -579,9 +575,9 @@ class TextSR(base.TextBase):
                     hr = np.clip(hr * 255, 0, 255).astype(np.uint8)
                     bi = bi.permute(1, 2, 0).cpu().numpy()
                     bi = np.clip(bi * 255, 0, 255).astype(np.uint8)
-                    pred_str_lr_filt = str_filt(pred_str_lr[n], voc_type, is_cdistnet_eng)
-                    pred_str_sr_filt = str_filt(pred_str_sr[n], voc_type, is_cdistnet_eng)
-                    label_str_filt = str_filt(label_strs[n], voc_type, is_cdistnet_eng)
+                    pred_str_lr_filt = str_filt(pred_str_lr[n], voc_type)
+                    pred_str_sr_filt = str_filt(pred_str_sr[n], voc_type)
+                    label_str_filt = str_filt(label_strs[n], voc_type)
                     sr_path = os.path.join(result_img_path,
                                            f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
                     lr_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-lr.png')
@@ -651,7 +647,6 @@ class TextSR(base.TextBase):
         psnr_avg = round(psnr_avg.item(), 6)
         ssim_avg = round(ssim_avg.item(), 6)
         current_acc_dict[data_name] = float(acc)
-        # result = {'accuracy': current_acc_dict, 'fps': fps}
         result = {'accuracy': current_acc_dict, 'psnr_avg': psnr_avg, 'ssim_avg': ssim_avg}
         print('SR: ', result)
 
@@ -662,12 +657,11 @@ class TextSR(base.TextBase):
         psnr_avg_lr = round(psnr_avg_lr.item(), 6)
         ssim_avg_lr = round(ssim_avg_lr.item(), 6)
         current_acc_dict_lr[data_name] = float(acc_lr)
-        # result = {'accuracy': current_acc_dict, 'fps': fps}
         result_lr = {'accuracy': current_acc_dict_lr, 'psnr_avg': psnr_avg_lr, 'ssim_avg': ssim_avg_lr}
         print('Bicubic LR: ', result_lr)
 
     def init_test_recognition_model(self):
-        recognition_model, info = self.CDistNet_eng_init()
+        recognition_model, info = self.CDistNet_all_init()
         recognition_model.eval()
         for p in recognition_model.parameters():
             p.requires_grad = False
@@ -677,7 +671,7 @@ class TextSR(base.TextBase):
         # input_images: 3 channel images, without mask channel
         model_input = self.parse_cdistnet_data(input_images)
         model_output = recognition_model(model_input, beam_size=2)
-        pred_str = get_string_cdistnet_eng(output=model_output, dataset=dataset_info)
+        pred_str = get_string_cdistnet_all(output=model_output, dataset=dataset_info)
         return pred_str
 
 

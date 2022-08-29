@@ -214,6 +214,61 @@ class lmdbDataset_eng(Dataset):
         return img_HR, img_LR, label_str, target
 
 
+class lmdbDataset_all(Dataset):
+    def __init__(self, root=None, voc_type='all', max_len=100, word2idx=None):
+        super(lmdbDataset_all, self).__init__()
+        self.env = lmdb.open(root, max_readers=1, readonly=True, lock=False, readahead=False, meminit=False)
+        if not self.env:
+            print('cannot creat lmdb from %s' % root)
+            sys.exit(0)
+
+        with self.env.begin(write=False) as txn:
+            nSamples = int(txn.get(b'num-samples'))
+            self.nSamples = nSamples
+            print("root:", root)
+            print("nSamples:", nSamples)
+
+            # for batching
+            self.hr_keys = [key for key, _ in txn.cursor() if b'hr' in key]
+            self.lr_keys = [key for key, _ in txn.cursor() if b'lr' in key]
+            self.label_keys = [key for key, _ in txn.cursor() if b'label' in key]
+
+        self.voc_type = voc_type
+        self.max_len = max_len
+        self.word2idx = word2idx
+
+    def __len__(self):
+        return self.nSamples
+
+    def __getitem__(self, index):
+        assert index <= len(self), 'index range error'
+        # index += 1
+        txn = self.env.begin(write=False)
+        label_key = self.label_keys[index]
+        HR_key = self.hr_keys[index]    # 128*32
+        LR_key = self.lr_keys[index]    # 64*16
+        word = ""
+        try:
+            img_HR = buf2PIL(txn, HR_key, 'RGB')
+            img_LR = buf2PIL(txn, LR_key, 'RGB')
+            word = txn.get(label_key)
+            if word is None:
+                print("None word:", label_key)
+                word = " "
+            else:
+                word = str(word.decode())
+        except IOError or len(word) > self.max_len:
+            return self[index + 1]
+        label_str = str_filt(word, self.voc_type)
+
+        target = [self.word2idx.get(ch, 1) for ch in label_str]
+        target.insert(0, 2)
+        target.append(3)
+        target = np.array(target)
+
+        return img_HR, img_LR, label_str, target
+
+
 class resizeNormalize(object):
     def __init__(self, size, mask=False, interpolation=Image.BICUBIC, aug=None, blur=False):
         self.size = size
@@ -667,6 +722,39 @@ class alignCollate_kor(alignCollate_syn):
 class alignCollate_eng(alignCollate_syn):
     """
     For using CDistNet_eng as TPG.
+    """
+    def __call__(self, batch):
+        images_HR, images_lr, label_strs, targets = zip(*batch)
+
+        imgH = self.imgH
+        imgW = self.imgW
+
+        images_HR = [self.transform(image) for image in images_HR]
+        images_HR = torch.cat([t.unsqueeze(0) for t in images_HR], 0)
+
+        images_lr = [self.transform2(image) for image in images_lr]
+        images_lr = torch.cat([t.unsqueeze(0) for t in images_lr], 0)
+
+        # max_len = max(len(target) for target in targets)
+        max_len = 27
+
+        targets_ = []
+        for target in targets:
+            d = max_len - target.shape[0]
+            if d < 0:
+                target = target[:max_len]
+                target[-1] = 3
+            else:
+                target = np.pad(target, (0, d), 'constant')
+            targets_.append(target)
+        target_batch = torch.LongTensor(np.array(targets_))
+
+        return images_HR, images_lr, label_strs, target_batch
+
+
+class alignCollate_all(alignCollate_syn):
+    """
+    For using CDistNet_all as TPG.
     """
     def __call__(self, batch):
         images_HR, images_lr, label_strs, targets = zip(*batch)

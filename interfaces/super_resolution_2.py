@@ -93,7 +93,7 @@ class TextSR(base.TextBase):
     def model_inference(self, images_lr, model_list, stu_model):
         ret_dict = {}   # keys: duration, images_sr
         ret_dict["duration"] = 0
-        if self.args.kor:
+        if self.args.voc_type == 'kor':
             aster_dict_lr = self.parse_cdistnet_data(images_lr[:, :3, :, :])
             before = time.time()
             label_vecs_logits = stu_model[0](aster_dict_lr, beam_size=2)    # beam size 2
@@ -247,7 +247,7 @@ class TextSR(base.TextBase):
 
                 # images_hrraw, images_pseudoLR, images_lrraw, images_HRy, images_lry, label_strs, label_vecs, weighted_mask, weighted_tics = data
                 # images_hr, _, images_lr, _, _, _, _, _, _ = data
-                if self.args.kor:
+                if self.args.voc_type == 'kor':
                     images_hr, images_lr, _, tgt = data
                     images_lr = images_lr.to(self.device)
                     images_hr = images_hr.to(self.device)
@@ -271,7 +271,7 @@ class TextSR(base.TextBase):
                 # stu_model: extract prob. vec. from interpolated LR image, trainable
                 stu_model = aster_student[0]
 
-                if self.args.kor:
+                if self.args.voc_type == 'kor':
                     aster_dict_lr = self.parse_cdistnet_data(images_lr[:, :3, :, :])
                     label_vecs_logits = stu_model(aster_dict_lr, tgt)
                 else:
@@ -477,7 +477,7 @@ class TextSR(base.TextBase):
 
             for i, data in (enumerate(val_loader)):
                 # images_hrraw, images_lrraw, images_HRy, images_lry, label_strs, label_vecs_gt = data
-                if self.args.kor:
+                if self.args.voc_type == 'kor':
                     images_hr, images_lr, label_strs, tgt = data
                     images_lr = images_lr.to(self.device)
                     images_hr = images_hr.to(self.device)
@@ -585,7 +585,7 @@ class TextSR(base.TextBase):
                 metric_dict['psnr_lr'].append(self.cal_psnr(img_lr[:, :3], images_hr[:, :3]))
                 metric_dict['ssim_lr'].append(self.cal_ssim(img_lr[:, :3], images_hr[:, :3]))
 
-                filter_mode = 'lower' if not self.args.kor else 'korean'
+                filter_mode = 'lower' if not self.args.voc_type == 'kor' else 'korean'
 
                 for batch_i in range(images_lr.shape[0]):
 
@@ -706,7 +706,7 @@ class TextSR(base.TextBase):
         current_acc_dict_lr = {data_name: 0}
         sr_time = 0
         for i, data in (enumerate(test_loader)):
-            if self.args.kor:
+            if self.args.voc_type == 'kor':
                 images_hr, images_lr, label_strs, _ = data
                 images_lr = images_lr.to(self.device)
                 images_hr = images_hr.to(self.device)

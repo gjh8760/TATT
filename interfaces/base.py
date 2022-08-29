@@ -15,6 +15,7 @@ from model import crnn
 from dataset import lmdbDataset, alignCollate
 from dataset import lmdbDataset_kor, alignCollate_kor
 from dataset import lmdbDataset_eng, alignCollate_eng
+from dataset import lmdbDataset_all, alignCollate_all
 from loss import gradient_loss, percptual_loss, image_loss, semantic_loss
 
 from utils.labelmaps import get_vocabulary, labels2strs
@@ -33,23 +34,33 @@ class TextBase(object):
         super(TextBase, self).__init__()
         self.config = config
         self.args = args
-        if self.args.kor:
-            self.config_CDistNet = 'CDistNet/ckpts/yeti_2022-07-11/CDistNet_config_kor.py'
-        else:
-            self.config_CDistNet = 'CDistNet/ckpts/yeti_2022-04-13/CDistNet_config.py'
+        if self.args.voc_type == 'kor':
+            # self.config_CDistNet = 'CDistNet/ckpts/yeti_2022-07-11/CDistNet_config_kor.py'
+            self.config_CDistNet = 'models_str/cdistnet_kor/CDistNet_config_kor.py'
+        elif self.args.voc_type == 'eng':
+            # self.config_CDistNet = 'CDistNet/ckpts/yeti_2022-04-13/CDistNet_config.py'
+            self.config_CDistNet = 'models_str/cdistnet_eng/CDistNet_config.py'
+        elif self.args.voc_type == 'all':
+            # self.config_CDistNet = 'CDistNet/ckpts/v100_2022-04-13/CDistNet_config_v100.py'
+            self.config_CDistNet = 'models_str/cdistnet_all/CDistNet_config_v100.py'
         self.scale_factor = self.config.TRAIN.down_sample_scale
 
-        if self.args.kor:
+        if self.args.voc_type == 'kor':
             self.align_collate = alignCollate_kor
             self.load_dataset = lmdbDataset_kor
             self.align_collate_val = alignCollate_kor
             self.load_dataset_val = lmdbDataset_kor
-        elif self.args.tpg == 'cdistnet_eng':
+        elif self.args.voc_type == 'eng' and self.args.tpg == 'cdistnet_eng':
             self.align_collate = alignCollate_eng
             self.load_dataset = lmdbDataset_eng
             self.align_collate_val = alignCollate_eng
             self.load_dataset_val = lmdbDataset_eng
-        else:
+        elif self.args.voc_type == 'all':
+            self.align_collate = alignCollate_all
+            self.load_dataset = lmdbDataset_all
+            self.align_collate_val = alignCollate_all
+            self.load_dataset_val = lmdbDataset_all
+        else:   # voc_type == eng, tpg == crnn
             self.align_collate = alignCollate
             self.load_dataset = lmdbDataset
             self.align_collate_val = alignCollate
@@ -73,6 +84,9 @@ class TextBase(object):
             voc_eng_list = open('./CDistNet/cdistnet/utils/dict_40_num_eng.txt', 'r').readlines()
             voc_eng_list = [x.replace('\n', '') for x in voc_eng_list]
             alpha_dict['lower'] = voc_eng_list
+        # cdistnet_all
+        if self.args.tpg == 'cdistnet_all':
+            voc_eng_list = open('./CDistNet/cdistnet/utils/dict_2448_num_eng_Eng_spe_kor.txt', 'r').readlines()
         self.test_data_dir = self.args.test_data_dir if self.args.test_data_dir is not None else self.config.TEST.test_data_dir
         self.voc_type = self.config.TRAIN.voc_type
         self.alphabet = alpha_dict[self.voc_type]
@@ -151,11 +165,13 @@ class TextBase(object):
         if not resume_in is None:
             resume = resume_in
 
-        if self.args.kor:
+        if self.args.voc_type == 'kor':
             text_embedding = 2354
-        elif self.args.tpg == 'cdistnet_eng':
+        elif self.args.voc_type == 'eng' and self.args.tpg == 'cdistnet_eng':
             text_embedding = 40
-        else:
+        elif self.args.voc_type == 'all':
+            text_embedding = 2448
+        else:   # voc_type == eng, tpg == crnn
             text_embedding = 37
 
         model = tsrn.TSRN_TL_TRANS(scale_factor=self.scale_factor, width=cfg.width, height=cfg.height,
@@ -199,10 +215,7 @@ class TextBase(object):
     def optimizer_init(self, model_list, learning_rate_list):
         cfg = self.config.TRAIN
 
-        # model_params = []
-        # for m in model_list:
-        #     model_params += list(m.parameters())
-
+        # Set learning rate for each model
         param_lr_list = []
         for idx, model in enumerate(model_list):
             param_lr_dict = {}
@@ -375,6 +388,27 @@ class TextBase(object):
 
         return model, cdistnet_info
 
+    def CDistNet_all_init(self, recognizer_path=None):
+        """
+        Initialize CDistNet_all parameters.
+        """
+        cfg = Config.fromfile(self.config_CDistNet)
+        model = build_CDistNet(cfg)
+
+        cdistnet_info = CDistNetInfo(voc_type='all')
+        model_path = recognizer_path if not recognizer_path is None else self.config.TRAIN.VAL.cdistnet_all_pretrained
+        print("recognizer_path:", model_path)
+        print('loading pretrained CDistNet model from %s' % model_path)
+        stat_dict = torch.load(model_path, map_location=self.device)
+
+        try:
+            model.load_state_dict(stat_dict['model'])
+        except:
+            model.load_state_dict(stat_dict)
+        model.to(self.device)
+
+        return model, cdistnet_info
+
     def TPG_init(self, recognizer_path=None, opt=None):
         model = crnn.Model(opt)
         model = model.to(self.device)
@@ -489,14 +523,17 @@ class AsterInfo(object):
 class CDistNetInfo(object):
     def __init__(self, voc_type):
         self.voc_type = voc_type
-        assert self.voc_type in ['lower', 'korean']
+        assert self.voc_type in ['lower', 'korean', 'all']
 
         if self.voc_type == 'korean':
             self.max_len = 26
             voc = open('CDistNet/cdistnet/utils/dict_2354_kor.txt', 'r').readlines()
-        else:
+        elif self.voc_type == 'lower':
             self.max_len = 100
             voc = open('CDistNet/cdistnet/utils/dict_40_num_eng.txt', 'r').readlines()
+        else:   # self.voc_type == 'all'
+            self.max_len = 100
+            voc = open('CDistNet/cdistnet/utils/dict_2448_num_eng_Eng_spe_kor.txt', 'r').readlines()
 
         self.voc = [x.replace('\n', '') for x in voc]
         self.char2id = dict(zip(self.voc, range(len(self.voc))))

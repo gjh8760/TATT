@@ -11,22 +11,29 @@ import numpy as np
 from IPython import embed
 
 
-def str_filt(str_, voc_type, is_cdistnet_eng=False):
+def str_filt(str_, voc_type, is_crnn=False):
     alpha_dict = {
         'digit': string.digits,
-        'lower': string.digits + string.ascii_lowercase,
+        'lower': string.digits + string.ascii_lowercase,    # for tpg == crnn
         'upper': string.digits + string.ascii_letters,
-        'all':   string.digits + string.ascii_letters + string.punctuation
     }
-    voc_korean = open("CDistNet/cdistnet/utils/dict_2354_kor.txt", "r").readlines()
-    voc_korean = [x.replace('\n', '') for x in voc_korean]
-    alpha_dict['korean'] = voc_korean
-    if is_cdistnet_eng:
+    if voc_type == 'korean':
+        voc = open("CDistNet/cdistnet/utils/dict_2354_kor.txt", "r").readlines()
+        voc = [x.replace('\n', '') for x in voc]
+        alpha_dict['korean'] = voc
+    elif voc_type == 'lower' and not is_crnn:
         voc = open('CDistNet/cdistnet/utils/dict_40_num_eng.txt', 'r').readlines()
         voc = [x.replace('\n', '') for x in voc]
         alpha_dict['lower'] = voc
-
-    if voc_type == 'lower':
+    elif voc_type =='all':
+        voc = open('CDistNet/cdistnet/utils/dict_2448_num_eng_Eng_spe_kor.txt', 'r').readlines()
+        voc = [x.replace('\n', '') for x in voc]
+        alpha_dict['all'] = voc
+    elif voc_type == 'all_test':
+        voc = open('CDistNet/cdistnet/utils/dict_2390_num_eng_kor.txt', 'r').readlines()
+        voc = [x.replace('\n', '') for x in voc]
+        alpha_dict['all_test'] = voc
+    if is_crnn:
         str_ = str_.lower()
 
     for char in str_:

@@ -106,6 +106,25 @@ def get_string_cdistnet_kor(output, dataset=None):
     return pred_list
 
 
+def get_string_cdistnet_all(output, dataset=None):
+    # output: T, B, K
+    _, pred_rec = output.topk(1, dim=2)
+    pred_rec = to_numpy(pred_rec.squeeze(2))  # T, B
+
+    # list of char list
+    pred_list = []
+    seq_len, batch_size, num_classes = output.shape
+    for b in range(batch_size):
+        pred_str_b = ''
+        for t in range(seq_len):
+            if pred_rec[t, b] != 3:     # 3: eos
+                pred_str_b += dataset.id2char[pred_rec[t, b]]
+            else:
+                break
+        pred_list.append(pred_str_b)
+    return pred_list
+
+
 def get_string_crnn(outputs_, use_chinese=False, alphabet='-0123456789abcdefghijklmnopqrstuvwxyz'):
     outputs = outputs_.permute(1, 0, 2).contiguous()
     predict_result = []
