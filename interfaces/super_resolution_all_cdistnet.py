@@ -462,7 +462,7 @@ class TextSR(base.TextBase):
             return metric_dict
 
     def test(self):
-        TP_Generator_dict = {'cdistnet_ALL': self.CDistNet_ALL_init}
+        TP_Generator_dict = {'cdistnet_all': self.CDistNet_all_init}
         recognizer_path = os.path.join(self.resume, 'recognizer_best.pth')
         tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=recognizer_path)[0]
 

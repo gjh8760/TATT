@@ -33,8 +33,8 @@ def str_filt(str_, voc_type, is_crnn=False):
         voc = open('CDistNet/cdistnet/utils/dict_2390_num_eng_kor.txt', 'r').readlines()
         voc = [x.replace('\n', '') for x in voc]
         alpha_dict['all_test'] = voc
-    if is_crnn:
-        str_ = str_.lower()
+    
+    str_ = str_.lower()
 
     for char in str_:
         if char not in alpha_dict[voc_type]: #voc_type
