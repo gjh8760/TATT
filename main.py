@@ -5,6 +5,7 @@ import torch
 import argparse
 import os
 from easydict import EasyDict
+import warnings
 
 
 # Fix random seed
@@ -17,6 +18,9 @@ np.random.seed(SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+
+# Suppress all warnings
+warnings.filterwarnings("ignore")
 
 def main(config, args):
     if args.voc_type == 'kor':
@@ -42,7 +46,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--test', action='store_true', default=False)
-    parser.add_argument('--test_data_dir', type=str, default='/data/gjh8760/Dataset/STISR/TextZoom/test/easy', help='')
+    parser.add_argument('--test_data_dir', type=str, help='')
     parser.add_argument('--batch_size', type=int, default=64, help='')
     parser.add_argument('--resume', type=str, default=None, help='')
     parser.add_argument('--vis_dir', type=str, default='TATT/', help='')

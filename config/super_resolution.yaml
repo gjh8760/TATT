@@ -46,6 +46,12 @@ TRAIN:
 TEST:
   checkpoint: ''
   test_data_dir: [
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/CUTE80',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC13_857',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC15_1811',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IIIT5k_3000',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/SVT',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/SVTP',
     ]
 
 CONVERT:
