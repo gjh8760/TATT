@@ -182,7 +182,7 @@ class TextSR(base.TextBase):
                     for p in model.parameters():
                         p.requires_grad = True
 
-                images_hr, images_lr, _, tgt = data
+                images_hr, images_lr, label_strs, tgt = data
                 images_lr = images_lr.to(self.device)
                 images_hr = images_hr.to(self.device)
                 tgt = tgt.to(self.device)

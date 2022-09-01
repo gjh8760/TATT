@@ -86,7 +86,9 @@ class TextBase(object):
             alpha_dict['lower'] = voc_eng_list
         # cdistnet_all
         if self.args.tpg == 'cdistnet_all':
-            voc_eng_list = open('./CDistNet/cdistnet/utils/dict_2448_num_eng_Eng_spe_kor.txt', 'r').readlines()
+            voc_all_list = open('./CDistNet/cdistnet/utils/dict_2448_num_eng_Eng_spe_kor.txt', 'r').readlines()
+            voc_all_list = [x.replace('\n', '') for x in voc_all_list]
+            alpha_dict['all'] = voc_all_list
         self.test_data_dir = self.args.test_data_dir if self.args.test_data_dir is not None else self.config.TEST.test_data_dir
         self.voc_type = self.config.TRAIN.voc_type
         self.alphabet = alpha_dict[self.voc_type]
