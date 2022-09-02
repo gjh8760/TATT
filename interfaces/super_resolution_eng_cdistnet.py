@@ -387,9 +387,9 @@ class TextSR(base.TextBase):
                 aster_dict_hr = test_parser(images_hr[:, :3, :, :])
                 aster_dict_sr = test_parser(images_sr[:, :3, :, :])
 
-                aster_output_lr = test_rec_model(aster_dict_lr)
-                aster_output_hr = test_rec_model(aster_dict_hr)
-                aster_output_sr = test_rec_model(aster_dict_sr)
+                aster_output_lr = test_rec_model(aster_dict_lr, beam_size=2)
+                aster_output_hr = test_rec_model(aster_dict_hr, beam_size=2)
+                aster_output_sr = test_rec_model(aster_dict_sr, beam_size=2)
 
                 # predicted string result
                 predict_result_sr = test_to_str(aster_output_sr, aster_info)

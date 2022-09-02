@@ -5,7 +5,7 @@ TRAIN:
   train_data_dir: [
     '/data/gjh8760/Dataset/STISR/TextZoom/train1',
     '/data/gjh8760/Dataset/STISR/TextZoom/train2',
-    '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_training',
+    '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_training_no_rot',
   ]
   batch_size: 512
   width: 128
@@ -34,7 +34,7 @@ TRAIN:
       '/data/gjh8760/Dataset/STISR/TextZoom/test/easy',
       '/data/gjh8760/Dataset/STISR/TextZoom/test/medium',
       '/data/gjh8760/Dataset/STISR/TextZoom/test/hard',
-      '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_evaluation',
+      '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_evaluation_no_rot',
     ]
     n_vis: 10
     vis_dir: 'demo'
@@ -49,7 +49,7 @@ TRAIN:
 TEST:
   checkpoint: ''
   test_data_dir: [
-    '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_evaluation'
+    '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_evaluation_no_rot'
     ]
 
 CONVERT:

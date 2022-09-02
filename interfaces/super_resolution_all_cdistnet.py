@@ -217,7 +217,7 @@ class TextSR(base.TextBase):
                 loss_img_each = im_quality_loss.mean() * 100
                 loss_img += loss_img_each
 
-                ## loss_tssim: 1 - tssim(D(F(Y)), F(D(Y)), D(X))-
+                ## loss_tssim: 1 - tssim(D(F(Y)), F(D(Y)), D(X))
                 # D(F(Y)): deformed_sr
                 # F(D(Y)): deformed_first_sr
                 # D(X): deformed_hr
@@ -384,9 +384,9 @@ class TextSR(base.TextBase):
                 aster_dict_hr = test_parser(images_hr[:, :3, :, :])
                 aster_dict_sr = test_parser(images_sr[:, :3, :, :])
 
-                aster_output_lr = test_rec_model(aster_dict_lr)
-                aster_output_hr = test_rec_model(aster_dict_hr)
-                aster_output_sr = test_rec_model(aster_dict_sr)
+                aster_output_lr = test_rec_model(aster_dict_lr, beam_size=2)
+                aster_output_hr = test_rec_model(aster_dict_hr, beam_size=2)
+                aster_output_sr = test_rec_model(aster_dict_sr, beam_size=2)
 
                 # predicted string result
                 predict_result_sr = test_to_str(aster_output_sr, aster_info)
@@ -464,9 +464,9 @@ class TextSR(base.TextBase):
     def test(self):
         TP_Generator_dict = {'cdistnet_all': self.CDistNet_all_init}
         recognizer_path = os.path.join(self.resume, 'recognizer_best.pth')
-        # tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=recognizer_path)[0]
-        # DEBUG
-        tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=None)[0]
+        tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=recognizer_path)[0]
+        # # DEBUG
+        # tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=None)[0]
 
         model_dict = self.generator_init(0)
         model, image_crit = model_dict['model'], model_dict['crit']
@@ -532,13 +532,13 @@ class TextSR(base.TextBase):
                 pred_str_sr = self.get_recognition_result(recognition_model=recognition_model,
                                                         input_images=images_sr[:, :3, :, :],
                                                         dataset_info=info)
-                # pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
-                #                                         input_images=images_lr[:, :3, :, :],
-                #                                         dataset_info=info)
-                # DEBUG
                 pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
-                                                        input_images=images_hr[:, :3, :, :],
+                                                        input_images=images_lr[:, :3, :, :],
                                                         dataset_info=info)
+                # # DEBUG
+                # pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
+                #                                         input_images=images_hr[:, :3, :, :],
+                #                                         dataset_info=info)
                 
                 voc_type = 'all_test'
 
@@ -570,12 +570,12 @@ class TextSR(base.TextBase):
                 ## for correctly predicted with LR, but not predicted with SR
                 result_worse_img_path = os.path.join('./result/images_worse', self.vis_dir, data_name)
                 result_worse_txt_path = os.path.join('./result/texts_wrose', self.vis_dir, data_name)
-                ## DEBUG
-                result_debug_img_path = os.path.join('./result/images_debug', self.vis_dir, data_name)
+                
                 path_list = [result_img_path, result_txt_path, result_wrong_img_path, result_wrong_txt_path,
                             result_better_img_path, result_better_txt_path, result_worse_img_path, result_worse_txt_path]
-                # DEBUG
-                path_list += [result_debug_img_path]
+                # # DEBUG
+                # result_debug_img_path = os.path.join('./result/images_debug', self.vis_dir, data_name)
+                # path_list += [result_debug_img_path]
 
                 for path in path_list:
                     if i == 0:
@@ -659,11 +659,11 @@ class TextSR(base.TextBase):
                                     'w') as f:
                                 f.write(pred_str_sr[n] + '\n' + label_strs[n])
                         
-                        # DEBUG
-                        if pred_str_lr_filt != label_str_filt:
-                            hr_debug_path = os.path.join(result_debug_img_path,
-                                                        f'{str(i*self.batch_size + n).zfill(4)}-hr-{pred_str_lr_filt}-{label_str_filt}.png')
-                            imageio.imwrite(hr_debug_path, hr)
+                        # # DEBUG
+                        # if pred_str_lr_filt != label_str_filt:
+                        #     hr_debug_path = os.path.join(result_debug_img_path,
+                        #                                 f'{str(i*self.batch_size + n).zfill(4)}-hr-{pred_str_lr_filt}-{label_str_filt}.png')
+                        #     imageio.imwrite(hr_debug_path, hr)
 
                     except IndexError:
                         break
