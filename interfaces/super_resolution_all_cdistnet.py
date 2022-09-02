@@ -468,10 +468,7 @@ class TextSR(base.TextBase):
 
         model_dict = self.generator_init(0)
         model, image_crit = model_dict['model'], model_dict['crit']
-        test_data, test_loader = self.get_test_data(self.test_data_dir)
-        data_name = self.args.test_data_dir.split('/')[-1]
-        print('evaling %s' % data_name)
-
+        
         recognition_model, info = self.init_test_recognition_model()    # info is only for aster model
 
         for p in model.parameters():
@@ -480,185 +477,211 @@ class TextSR(base.TextBase):
         for p in tpg.parameters():
             p.requires_grad = False
         tpg.eval()
-        n_correct = 0
-        n_correct_lr = 0
-        sum_images = 0
-        metric_dict = {'psnr': [], 'ssim': [], 'accuracy': 0.0, 'psnr_avg': 0.0, 'ssim_avg': 0.0}
-        metric_dict_lr = {'psnr': [], 'ssim': [], 'accuracy': 0.0, 'psnr_avg': 0.0, 'ssim_avg': 0.0}
-        current_acc_dict = {data_name: 0}
-        current_acc_dict_lr = {data_name: 0}
-        sr_time = 0
-        for i, data in (enumerate(test_loader)):
-            images_hr, images_lr, label_strs, _ = data
-            images_lr = images_lr.to(self.device)
-            images_hr = images_hr.to(self.device)
-            input_for_rec_model = self.parse_cdistnet_data(images_lr[:, :3, :, :])
-            label_vecs_logits = tpg(input_for_rec_model, beam_size=2)   # T, B, K
 
-            val_batch_size = images_lr.shape[0]
-            label_vecs = F.softmax(label_vecs_logits, -1)   # T, B, K
-            label_vecs_final = label_vecs.permute(1, 0, 2).unsqueeze(1).permute(0, 3, 1, 2)     # B, K, 1, T
+        test_data_dirs = self.test_data_dir
+        if not isinstance(test_data_dirs, list):
+            test_data_dirs = [test_data_dirs]
 
-            sr_begin = time.time()
-            images_sr = model(images_lr, label_vecs_final.detach())
+        n_correct_total = 0
+        n_correct_lr_total = 0
+        sum_images_total = 0
 
-            sr_end = time.time()
-            sr_time += sr_end - sr_begin
+        for test_data_dir in test_data_dirs:
 
-            # HR metric
-            metric_dict['psnr'].append(self.cal_psnr(images_sr, images_hr))
-            metric_dict['ssim'].append(self.cal_ssim(images_sr, images_hr))
+            test_data, test_loader = self.get_test_data(test_data_dir)
+            data_name = test_data_dir.split('/')[-1]
+            print('evaling %s...' % data_name)
 
-            # bicubic LR metric
-            images_upsampled_lr = F.interpolate(images_lr, (32, 128), mode='bicubic').clamp(0., 1.)
-            metric_dict_lr['psnr'].append(self.cal_psnr(images_upsampled_lr, images_hr))
-            metric_dict_lr['ssim'].append(self.cal_ssim(images_upsampled_lr, images_hr))
+            n_correct = 0
+            n_correct_lr = 0
+            sum_images = 0
+            metric_dict = {'psnr': [], 'ssim': [], 'accuracy': 0.0, 'psnr_avg': 0.0, 'ssim_avg': 0.0}
+            metric_dict_lr = {'psnr': [], 'ssim': [], 'accuracy': 0.0, 'psnr_avg': 0.0, 'ssim_avg': 0.0}
+            current_acc_dict = {data_name: 0}
+            current_acc_dict_lr = {data_name: 0}
+            sr_time = 0
 
-            pred_str_sr = self.get_recognition_result(recognition_model=recognition_model,
-                                                      input_images=images_sr[:, :3, :, :],
-                                                      dataset_info=info)
-            pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
-                                                      input_images=images_lr[:, :3, :, :],
-                                                      dataset_info=info)
-            
-            voc_type = 'all_test'
+            for i, data in (enumerate(test_loader)):
+                images_hr, images_lr, label_strs, _ = data
+                images_lr = images_lr.to(self.device)
+                images_hr = images_hr.to(self.device)
+                input_for_rec_model = self.parse_cdistnet_data(images_lr[:, :3, :, :])
+                label_vecs_logits = tpg(input_for_rec_model, beam_size=2)   # T, B, K
 
-            # HR # of correct samples
-            for pred, target in zip(pred_str_sr, label_strs):
-                if str_filt(pred, voc_type) == str_filt(target, voc_type):
-                    n_correct += 1
+                val_batch_size = images_lr.shape[0]
+                label_vecs = F.softmax(label_vecs_logits, -1)   # T, B, K
+                label_vecs_final = label_vecs.permute(1, 0, 2).unsqueeze(1).permute(0, 3, 1, 2)     # B, K, 1, T
 
-            # LR # of correct samples
-            for pred, target in zip(pred_str_lr, label_strs):
-                if str_filt(pred, voc_type) == str_filt(target, voc_type):
-                    n_correct_lr += 1
+                sr_begin = time.time()
+                images_sr = model(images_lr, label_vecs_final.detach())
 
-            sum_images += val_batch_size
-            torch.cuda.empty_cache()
-            print('Evaluation: [{}][{}/{}]\t'
-                  .format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                          i + 1, len(test_loader), ))
+                sr_end = time.time()
+                sr_time += sr_end - sr_begin
 
-            # save LR / SR / HR images, txt label
-            result_img_path = os.path.join('./result/images', self.vis_dir, data_name)
-            result_txt_path = os.path.join('./result/texts', self.vis_dir, data_name)
-            ## for mispredicted samples
-            result_wrong_img_path = os.path.join('./result/images_wrong', self.vis_dir, data_name)
-            result_wrong_txt_path = os.path.join('./result/texts_wrong', self.vis_dir, data_name)
-            ## for correctly predicted, but not predicted in LR
-            result_better_img_path = os.path.join('./result/images_better', self.vis_dir, data_name)
-            result_better_txt_path = os.path.join('./result/texts_better', self.vis_dir, data_name)
-            ## for correctly predicted with LR, but not predicted with SR
-            result_worse_img_path = os.path.join('./result/images_worse', self.vis_dir, data_name)
-            result_worse_txt_path = os.path.join('./result/texts_wrose', self.vis_dir, data_name)
+                # HR metric
+                metric_dict['psnr'].append(self.cal_psnr(images_sr, images_hr))
+                metric_dict['ssim'].append(self.cal_ssim(images_sr, images_hr))
 
-            path_list = [result_img_path, result_txt_path, result_wrong_img_path, result_wrong_txt_path,
-                         result_better_img_path, result_better_txt_path, result_worse_img_path, result_worse_txt_path]
+                # bicubic LR metric
+                images_upsampled_lr = F.interpolate(images_lr, (32, 128), mode='bicubic').clamp(0., 1.)
+                metric_dict_lr['psnr'].append(self.cal_psnr(images_upsampled_lr, images_hr))
+                metric_dict_lr['ssim'].append(self.cal_ssim(images_upsampled_lr, images_hr))
 
-            for path in path_list:
-                if i == 0:
-                    if os.path.exists(path):
-                        shutil.rmtree(path)
-                    os.makedirs(path)
+                pred_str_sr = self.get_recognition_result(recognition_model=recognition_model,
+                                                        input_images=images_sr[:, :3, :, :],
+                                                        dataset_info=info)
+                pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
+                                                        input_images=images_lr[:, :3, :, :],
+                                                        dataset_info=info)
+                
+                voc_type = 'all_test'
 
-            for n in range(self.batch_size):
-                try:
-                    sr = images_sr[n][:3, :, :]  # range [0, 1]
-                    lr = images_lr[n][:3, :, :]  # range [0, 1]
-                    hr = images_hr[n][:3, :, :]  # range [0, 1]
-                    bi = F.interpolate(lr.unsqueeze(0), (32, 128), mode='bicubic').clamp(0., 1.).squeeze(0)
-                    sr = sr.permute(1, 2, 0).cpu().numpy()
-                    sr = np.clip(sr * 255., 0, 255).astype(np.uint8)
-                    lr = lr.permute(1, 2, 0).cpu().numpy()
-                    lr = np.clip(lr * 255., 0, 255).astype(np.uint8)
-                    hr = hr.permute(1, 2, 0).cpu().numpy()
-                    hr = np.clip(hr * 255, 0, 255).astype(np.uint8)
-                    bi = bi.permute(1, 2, 0).cpu().numpy()
-                    bi = np.clip(bi * 255, 0, 255).astype(np.uint8)
-                    pred_str_lr_filt = str_filt(pred_str_lr[n], voc_type)
-                    pred_str_sr_filt = str_filt(pred_str_sr[n], voc_type)
-                    label_str_filt = str_filt(label_strs[n], voc_type)
-                    sr_path = os.path.join(result_img_path,
-                                           f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
-                    lr_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-lr.png')
-                    hr_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
-                    bi_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
-                    imageio.imwrite(sr_path, sr)
-                    imageio.imwrite(lr_path, lr)
-                    imageio.imwrite(hr_path, hr)
-                    imageio.imwrite(bi_path, bi)
-                    with open(os.path.join(result_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'), 'w') as f:
-                        f.write(pred_str_sr[n] + '\n' + label_strs[n])
+                # HR # of correct samples
+                for pred, target in zip(pred_str_sr, label_strs):
+                    if str_filt(pred, voc_type) == str_filt(target, voc_type):
+                        n_correct += 1
 
-                    # Save mispredicted results
-                    if pred_str_sr_filt != label_str_filt:
-                        sr_wrong_path = os.path.join(result_wrong_img_path,
-                                                     f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
-                        lr_wrong_path = os.path.join(result_wrong_img_path, f'{str(i * self.batch_size + n).zfill(4)}-lr.png')
-                        hr_wrong_path = os.path.join(result_wrong_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
-                        bi_wrong_path = os.path.join(result_wrong_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
-                        imageio.imwrite(sr_wrong_path, sr)
-                        imageio.imwrite(lr_wrong_path, lr)
-                        imageio.imwrite(hr_wrong_path, hr)
-                        imageio.imwrite(bi_wrong_path, bi)
-                        with open(os.path.join(result_wrong_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'),
-                                  'w') as f:
+                # LR # of correct samples
+                for pred, target in zip(pred_str_lr, label_strs):
+                    if str_filt(pred, voc_type) == str_filt(target, voc_type):
+                        n_correct_lr += 1
+
+                sum_images += val_batch_size
+                torch.cuda.empty_cache()
+                print('Evaluation: [{}][{}/{}]\t'
+                    .format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            i + 1, len(test_loader), ))
+
+                # save LR / SR / HR images, txt label
+                result_img_path = os.path.join('./result/images', self.vis_dir, data_name)
+                result_txt_path = os.path.join('./result/texts', self.vis_dir, data_name)
+                ## for mispredicted samples
+                result_wrong_img_path = os.path.join('./result/images_wrong', self.vis_dir, data_name)
+                result_wrong_txt_path = os.path.join('./result/texts_wrong', self.vis_dir, data_name)
+                ## for correctly predicted, but not predicted in LR
+                result_better_img_path = os.path.join('./result/images_better', self.vis_dir, data_name)
+                result_better_txt_path = os.path.join('./result/texts_better', self.vis_dir, data_name)
+                ## for correctly predicted with LR, but not predicted with SR
+                result_worse_img_path = os.path.join('./result/images_worse', self.vis_dir, data_name)
+                result_worse_txt_path = os.path.join('./result/texts_wrose', self.vis_dir, data_name)
+
+                path_list = [result_img_path, result_txt_path, result_wrong_img_path, result_wrong_txt_path,
+                            result_better_img_path, result_better_txt_path, result_worse_img_path, result_worse_txt_path]
+
+                for path in path_list:
+                    if i == 0:
+                        if os.path.exists(path):
+                            shutil.rmtree(path)
+                        os.makedirs(path)
+
+                for n in range(self.batch_size):
+                    try:
+                        sr = images_sr[n][:3, :, :]  # range [0, 1]
+                        lr = images_lr[n][:3, :, :]  # range [0, 1]
+                        hr = images_hr[n][:3, :, :]  # range [0, 1]
+                        bi = F.interpolate(lr.unsqueeze(0), (32, 128), mode='bicubic').clamp(0., 1.).squeeze(0)
+                        sr = sr.permute(1, 2, 0).cpu().numpy()
+                        sr = np.clip(sr * 255., 0, 255).astype(np.uint8)
+                        lr = lr.permute(1, 2, 0).cpu().numpy()
+                        lr = np.clip(lr * 255., 0, 255).astype(np.uint8)
+                        hr = hr.permute(1, 2, 0).cpu().numpy()
+                        hr = np.clip(hr * 255, 0, 255).astype(np.uint8)
+                        bi = bi.permute(1, 2, 0).cpu().numpy()
+                        bi = np.clip(bi * 255, 0, 255).astype(np.uint8)
+                        pred_str_lr_filt = str_filt(pred_str_lr[n], voc_type)
+                        pred_str_sr_filt = str_filt(pred_str_sr[n], voc_type)
+                        label_str_filt = str_filt(label_strs[n], voc_type)
+                        sr_path = os.path.join(result_img_path,
+                                            f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
+                        lr_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-lr.png')
+                        hr_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
+                        bi_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
+                        imageio.imwrite(sr_path, sr)
+                        imageio.imwrite(lr_path, lr)
+                        imageio.imwrite(hr_path, hr)
+                        imageio.imwrite(bi_path, bi)
+                        with open(os.path.join(result_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'), 'w') as f:
                             f.write(pred_str_sr[n] + '\n' + label_strs[n])
 
-                    # Save LR mispred but SR correctly pred
-                    if pred_str_lr_filt != label_str_filt and pred_str_sr_filt == label_str_filt:
-                        sr_better_path = os.path.join(result_better_img_path,
-                                                      f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
-                        lr_better_path = os.path.join(result_better_img_path,
-                                                      f'{str(i * self.batch_size + n).zfill(4)}-lr-{pred_str_lr_filt}-{label_str_filt}.png')
-                        hr_better_path = os.path.join(result_better_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
-                        bi_better_path = os.path.join(result_better_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
-                        imageio.imwrite(sr_better_path, sr)
-                        imageio.imwrite(lr_better_path, lr)
-                        imageio.imwrite(hr_better_path, hr)
-                        imageio.imwrite(bi_better_path, bi)
-                        with open(os.path.join(result_better_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'),
-                                  'w') as f:
-                            f.write(pred_str_sr[n] + '\n' + label_strs[n])
+                        # Save mispredicted results
+                        if pred_str_sr_filt != label_str_filt:
+                            sr_wrong_path = os.path.join(result_wrong_img_path,
+                                                        f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
+                            lr_wrong_path = os.path.join(result_wrong_img_path, f'{str(i * self.batch_size + n).zfill(4)}-lr.png')
+                            hr_wrong_path = os.path.join(result_wrong_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
+                            bi_wrong_path = os.path.join(result_wrong_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
+                            imageio.imwrite(sr_wrong_path, sr)
+                            imageio.imwrite(lr_wrong_path, lr)
+                            imageio.imwrite(hr_wrong_path, hr)
+                            imageio.imwrite(bi_wrong_path, bi)
+                            with open(os.path.join(result_wrong_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'),
+                                    'w') as f:
+                                f.write(pred_str_sr[n] + '\n' + label_strs[n])
 
-                    # Save results which got worse accuracy after SR
-                    if pred_str_lr_filt == label_str_filt and pred_str_sr_filt != label_str_filt:
-                        sr_worse_path = os.path.join(result_worse_img_path,
-                                                     f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
-                        lr_worse_path = os.path.join(result_worse_img_path,
-                                                     f'{str(i * self.batch_size + n).zfill(4)}-lr-{pred_str_lr_filt}-{label_str_filt}.png')
-                        hr_worse_path = os.path.join(result_worse_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
-                        bi_worse_path = os.path.join(result_worse_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
-                        imageio.imwrite(sr_worse_path, sr)
-                        imageio.imwrite(lr_worse_path, lr)
-                        imageio.imwrite(hr_worse_path, hr)
-                        imageio.imwrite(bi_worse_path, bi)
-                        with open(os.path.join(result_worse_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'),
-                                  'w') as f:
-                            f.write(pred_str_sr[n] + '\n' + label_strs[n])
+                        # Save LR mispred but SR correctly pred
+                        if pred_str_lr_filt != label_str_filt and pred_str_sr_filt == label_str_filt:
+                            sr_better_path = os.path.join(result_better_img_path,
+                                                        f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
+                            lr_better_path = os.path.join(result_better_img_path,
+                                                        f'{str(i * self.batch_size + n).zfill(4)}-lr-{pred_str_lr_filt}-{label_str_filt}.png')
+                            hr_better_path = os.path.join(result_better_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
+                            bi_better_path = os.path.join(result_better_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
+                            imageio.imwrite(sr_better_path, sr)
+                            imageio.imwrite(lr_better_path, lr)
+                            imageio.imwrite(hr_better_path, hr)
+                            imageio.imwrite(bi_better_path, bi)
+                            with open(os.path.join(result_better_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'),
+                                    'w') as f:
+                                f.write(pred_str_sr[n] + '\n' + label_strs[n])
 
-                except IndexError:
-                    break
+                        # Save results which got worse accuracy after SR
+                        if pred_str_lr_filt == label_str_filt and pred_str_sr_filt != label_str_filt:
+                            sr_worse_path = os.path.join(result_worse_img_path,
+                                                        f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
+                            lr_worse_path = os.path.join(result_worse_img_path,
+                                                        f'{str(i * self.batch_size + n).zfill(4)}-lr-{pred_str_lr_filt}-{label_str_filt}.png')
+                            hr_worse_path = os.path.join(result_worse_img_path, f'{str(i * self.batch_size + n).zfill(4)}-hr.png')
+                            bi_worse_path = os.path.join(result_worse_img_path, f'{str(i * self.batch_size + n).zfill(4)}-bi.png')
+                            imageio.imwrite(sr_worse_path, sr)
+                            imageio.imwrite(lr_worse_path, lr)
+                            imageio.imwrite(hr_worse_path, hr)
+                            imageio.imwrite(bi_worse_path, bi)
+                            with open(os.path.join(result_worse_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'),
+                                    'w') as f:
+                                f.write(pred_str_sr[n] + '\n' + label_strs[n])
 
-        # SR result
-        psnr_avg = sum(metric_dict['psnr']) / len(metric_dict['psnr'])
-        ssim_avg = sum(metric_dict['ssim']) / len(metric_dict['ssim'])
-        acc = round(n_correct / sum_images, 4)
-        psnr_avg = round(psnr_avg.item(), 6)
-        ssim_avg = round(ssim_avg.item(), 6)
-        current_acc_dict[data_name] = float(acc)
-        result = {'accuracy': current_acc_dict, 'psnr_avg': psnr_avg, 'ssim_avg': ssim_avg}
-        print('SR: ', result)
+                    except IndexError:
+                        break
 
-        # LR result
-        psnr_avg_lr = sum(metric_dict_lr['psnr']) / len(metric_dict_lr['psnr'])
-        ssim_avg_lr = sum(metric_dict_lr['ssim']) / len(metric_dict_lr['ssim'])
-        acc_lr = round(n_correct_lr / sum_images, 4)
-        psnr_avg_lr = round(psnr_avg_lr.item(), 6)
-        ssim_avg_lr = round(ssim_avg_lr.item(), 6)
-        current_acc_dict_lr[data_name] = float(acc_lr)
-        result_lr = {'accuracy': current_acc_dict_lr, 'psnr_avg': psnr_avg_lr, 'ssim_avg': ssim_avg_lr}
-        print('Bicubic LR: ', result_lr)
+            # SR result
+            psnr_avg = sum(metric_dict['psnr']) / len(metric_dict['psnr'])
+            ssim_avg = sum(metric_dict['ssim']) / len(metric_dict['ssim'])
+            acc = round(n_correct / sum_images, 4)
+            psnr_avg = round(psnr_avg.item(), 6)
+            ssim_avg = round(ssim_avg.item(), 6)
+            current_acc_dict[data_name] = float(acc)
+            result = {'accuracy': current_acc_dict, 'psnr_avg': psnr_avg, 'ssim_avg': ssim_avg}
+            print('SR: ', result)
+
+            # LR result
+            psnr_avg_lr = sum(metric_dict_lr['psnr']) / len(metric_dict_lr['psnr'])
+            ssim_avg_lr = sum(metric_dict_lr['ssim']) / len(metric_dict_lr['ssim'])
+            acc_lr = round(n_correct_lr / sum_images, 4)
+            psnr_avg_lr = round(psnr_avg_lr.item(), 6)
+            ssim_avg_lr = round(ssim_avg_lr.item(), 6)
+            current_acc_dict_lr[data_name] = float(acc_lr)
+            result_lr = {'accuracy': current_acc_dict_lr, 'psnr_avg': psnr_avg_lr, 'ssim_avg': ssim_avg_lr}
+            print('Bicubic LR: ', result_lr)
+
+            n_correct_total += n_correct
+            n_correct_lr_total += n_correct_lr
+            sum_images_total += sum_images
+        
+        ## Average Result
+        acc = round(n_correct_total / sum_images_total, 4)
+        acc_lr = round(n_correct_lr_total / sum_images_total, 4)
+        print('\n---------------------------------------\n')
+        print(f'Average HR accuracy: {acc}, LR accuracy: {acc_lr}')
 
     def init_test_recognition_model(self):
         recognition_model, info = self.CDistNet_all_init()
