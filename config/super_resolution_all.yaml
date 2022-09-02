@@ -49,6 +49,7 @@ TRAIN:
 TEST:
   checkpoint: ''
   test_data_dir: [
+    '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_evaluation'
     ]
 
 CONVERT:
