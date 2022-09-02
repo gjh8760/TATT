@@ -464,7 +464,9 @@ class TextSR(base.TextBase):
     def test(self):
         TP_Generator_dict = {'cdistnet_all': self.CDistNet_all_init}
         recognizer_path = os.path.join(self.resume, 'recognizer_best.pth')
-        tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=recognizer_path)[0]
+        # tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=recognizer_path)[0]
+        # DEBUG
+        tpg = TP_Generator_dict[self.args.tpg.lower()](recognizer_path=None)[0]
 
         model_dict = self.generator_init(0)
         model, image_crit = model_dict['model'], model_dict['crit']
@@ -530,8 +532,12 @@ class TextSR(base.TextBase):
                 pred_str_sr = self.get_recognition_result(recognition_model=recognition_model,
                                                         input_images=images_sr[:, :3, :, :],
                                                         dataset_info=info)
+                # pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
+                #                                         input_images=images_lr[:, :3, :, :],
+                #                                         dataset_info=info)
+                # DEBUG
                 pred_str_lr = self.get_recognition_result(recognition_model=recognition_model,
-                                                        input_images=images_lr[:, :3, :, :],
+                                                        input_images=images_hr[:, :3, :, :],
                                                         dataset_info=info)
                 
                 voc_type = 'all_test'
@@ -564,9 +570,12 @@ class TextSR(base.TextBase):
                 ## for correctly predicted with LR, but not predicted with SR
                 result_worse_img_path = os.path.join('./result/images_worse', self.vis_dir, data_name)
                 result_worse_txt_path = os.path.join('./result/texts_wrose', self.vis_dir, data_name)
-
+                ## DEBUG
+                result_debug_img_path = os.path.join('./result/images_debug', self.vis_dir, data_name)
                 path_list = [result_img_path, result_txt_path, result_wrong_img_path, result_wrong_txt_path,
                             result_better_img_path, result_better_txt_path, result_worse_img_path, result_worse_txt_path]
+                # DEBUG
+                path_list += [result_debug_img_path]
 
                 for path in path_list:
                     if i == 0:
@@ -649,6 +658,12 @@ class TextSR(base.TextBase):
                             with open(os.path.join(result_worse_txt_path, f'{str(i * self.batch_size + n).zfill(4)}-sr.txt'),
                                     'w') as f:
                                 f.write(pred_str_sr[n] + '\n' + label_strs[n])
+                        
+                        # DEBUG
+                        if pred_str_lr_filt != label_str_filt:
+                            hr_debug_path = os.path.join(result_debug_img_path,
+                                                        f'{str(i*self.batch_size + n).zfill(4)}-hr-{pred_str_lr_filt}-{label_str_filt}.png')
+                            imageio.imwrite(hr_debug_path, hr)
 
                     except IndexError:
                         break
