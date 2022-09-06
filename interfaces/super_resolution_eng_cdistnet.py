@@ -538,15 +538,14 @@ class TextSR(base.TextBase):
                                                         input_images=images_lr[:, :3, :, :],
                                                         dataset_info=info)
 
-                is_cdistnet_eng = True
                 # HR # of correct samples
                 for pred, target in zip(pred_str_sr, label_strs):
-                    if str_filt(pred, voc_type, is_cdistnet_eng) == str_filt(target, voc_type, is_cdistnet_eng):
+                    if str_filt(pred, voc_type) == str_filt(target, voc_type):
                         n_correct += 1
 
                 # LR # of correct samples
                 for pred, target in zip(pred_str_lr, label_strs):
-                    if str_filt(pred, voc_type, is_cdistnet_eng) == str_filt(target, voc_type, is_cdistnet_eng):
+                    if str_filt(pred, voc_type) == str_filt(target, voc_type):
                         n_correct_lr += 1
 
                 sum_images += val_batch_size
@@ -588,9 +587,9 @@ class TextSR(base.TextBase):
                         hr = np.clip(hr * 255, 0, 255).astype(np.uint8)
                         bi = bi.permute(1, 2, 0).cpu().numpy()
                         bi = np.clip(bi * 255, 0, 255).astype(np.uint8)
-                        pred_str_lr_filt = str_filt(pred_str_lr[n], voc_type, is_cdistnet_eng)
-                        pred_str_sr_filt = str_filt(pred_str_sr[n], voc_type, is_cdistnet_eng)
-                        label_str_filt = str_filt(label_strs[n], voc_type, is_cdistnet_eng)
+                        pred_str_lr_filt = str_filt(pred_str_lr[n], voc_type)
+                        pred_str_sr_filt = str_filt(pred_str_sr[n], voc_type)
+                        label_str_filt = str_filt(label_strs[n], voc_type)
                         sr_path = os.path.join(result_img_path,
                                             f'{str(i * self.batch_size + n).zfill(4)}-sr-{pred_str_sr_filt}-{label_str_filt}.png')
                         lr_path = os.path.join(result_img_path, f'{str(i * self.batch_size + n).zfill(4)}-lr.png')
@@ -674,7 +673,6 @@ class TextSR(base.TextBase):
             # result = {'accuracy': current_acc_dict, 'fps': fps}
             result_lr = {'accuracy': current_acc_dict_lr, 'psnr_avg': psnr_avg_lr, 'ssim_avg': ssim_avg_lr}
             print('Bicubic LR: ', result_lr)
-            print()
 
             n_correct_total += n_correct
             n_correct_lr_total += n_correct_lr
@@ -684,11 +682,14 @@ class TextSR(base.TextBase):
         acc = round(n_correct_total / sum_images_total, 4)
         acc_lr = round(n_correct_lr_total / sum_images_total, 4)
         print('\n---------------------------------------\n')
-        print(f'Average HR accuracy: {acc}, LR accuracy: {acc_lr}')
+        print(f'Average SR accuracy: {acc}, LR accuracy: {acc_lr}')
 
 
     def init_test_recognition_model(self):
-        recognition_model, info = self.CDistNet_eng_init()
+        if self.args.test_model == 'cdistnet_eng':
+            recognition_model, info = self.CDistNet_eng_init()
+        elif self.args.test_model == 'aster':
+            recognition_model, info = self.Aster_init()
         recognition_model.eval()
         for p in recognition_model.parameters():
             p.requires_grad = False
@@ -696,9 +697,15 @@ class TextSR(base.TextBase):
 
     def get_recognition_result(self, recognition_model, input_images, dataset_info):
         # input_images: 3 channel images, without mask channel
-        model_input = self.parse_cdistnet_data(input_images)
-        model_output = recognition_model(model_input, beam_size=2)
-        pred_str = get_string_cdistnet_eng(output=model_output, dataset=dataset_info)
+        if self.args.test_model == 'cdistnet_eng':
+            model_input = self.parse_cdistnet_data(input_images)
+            model_output = recognition_model(model_input, beam_size=2)
+            pred_str = get_string_cdistnet_eng(output=model_output, dataset=dataset_info)
+        elif self.args.test_model == 'aster':
+            model_input = self.parse_aster_data(input_images)
+            model_output = recognition_model(model_input)
+            pred_rec = model_output['output']['pred_rec']
+            pred_str, _ = get_string_aster(output=pred_rec, target=model_input['rec_targets'], dataset=dataset_info)
         return pred_str
 
 
