@@ -46,6 +46,9 @@ TRAIN:
 TEST:
   checkpoint: ''
   test_data_dir: [
+    # '/data/gjh8760/Dataset/STISR/TextZoom/test/easy',
+    # '/data/gjh8760/Dataset/STISR/TextZoom/test/medium',
+    # '/data/gjh8760/Dataset/STISR/TextZoom/test/hard',
     '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/CUTE80',
     '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC13_857',
     '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC15_1811',
