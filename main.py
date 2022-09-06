@@ -75,8 +75,8 @@ if __name__ == '__main__':
         args.config = 'super_resolution.yaml'
     elif args.voc_type == 'all':
         args.config = 'super_resolution_all.yaml'
-        args.tpg = 'cdistnet_all'
-        args.test_model = 'cdistnet_all'
+        # args.tpg = 'cdistnet_all'
+        # args.test_model = 'cdistnet_all'
 
     config_path = os.path.join('config', args.config)
     config = yaml.load(open(config_path, 'r'), Loader=yaml.Loader)
