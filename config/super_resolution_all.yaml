@@ -49,7 +49,16 @@ TRAIN:
 TEST:
   checkpoint: ''
   test_data_dir: [
-    '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_evaluation_no_rot'
+    # '/data/gjh8760/Dataset/STISR/kor_cropped_text/lmdb_evaluation_no_rot',
+    # '/data/gjh8760/Dataset/STISR/TextZoom/test/easy',
+    # '/data/gjh8760/Dataset/STISR/TextZoom/test/medium',
+    # '/data/gjh8760/Dataset/STISR/TextZoom/test/hard',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/CUTE80',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC13_857',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IC15_1811',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/IIIT5k_3000',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/SVT',
+    '/data/gjh8760/Dataset/STISR/STR_benchmark_LR/SVTP',
     ]
 
 CONVERT:
